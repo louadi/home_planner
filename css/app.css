@@ -1,0 +1,8 @@
+/* Entry point for styles. Split into three files so each stays readable:
+   base       — tokens, reset, app frame, tab bar, toast, sheet
+   components — cards, task rows, day blocks, person columns
+   forms      — stats, sliders, inputs, buttons, list rows, print */
+
+@import url('base.css');
+@import url('components.css');
+@import url('forms.css');

@@ -1,0 +1,595 @@
+/* Design tokens, resets and app frame.
+   Tablet-first: every interactive target is at least 44px, nothing depends on hover,
+   and safe-area insets are respected so it works installed to a Home Screen. */
+
+:root {
+  --ink: #1a1a2e;
+  --ink-2: #3d3d5c;
+  --ink-3: #6f6f8f;
+  --paper: #f7f6f3;
+  --surface: #ffffff;
+  --surface-2: #f1efeb;
+  --line: rgba(26, 26, 46, 0.11);
+  --line-strong: rgba(26, 26, 46, 0.2);
+  --accent: #c2703f;
+  --accent-soft: rgba(194, 112, 63, 0.12);
+  --good: #2f7d52;
+  --good-soft: rgba(47, 125, 82, 0.12);
+  --warn: #b06000;
+  --danger: #c0392b;
+  --person-a: #3a5a8a;
+  --person-b: #8a3a5a;
+
+  --r-lg: 22px;
+  --r-md: 14px;
+  --r-sm: 10px;
+  --shadow-sm: 0 1px 3px rgba(26, 26, 46, 0.07), 0 4px 14px rgba(26, 26, 46, 0.05);
+  --shadow-lg: 0 12px 40px rgba(26, 26, 46, 0.16);
+
+  --tap: 46px;
+  --topbar-h: 62px;
+  --tabbar-h: 68px;
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+  --font-display: 'Fraunces', Georgia, serif;
+
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --safe-left: env(safe-area-inset-left, 0px);
+  --safe-right: env(safe-area-inset-right, 0px);
+}
+
+/* Dark mode matters here: this thing lives on a kitchen counter at night. */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --ink: #edecf4;
+    --ink-2: #c3c2d4;
+    --ink-3: #9695ac;
+    --paper: #14141f;
+    --surface: #1d1d2b;
+    --surface-2: #262637;
+    --line: rgba(255, 255, 255, 0.1);
+    --line-strong: rgba(255, 255, 255, 0.2);
+    --accent: #e08a52;
+    --accent-soft: rgba(224, 138, 82, 0.16);
+    --good: #4fb37c;
+    --good-soft: rgba(79, 179, 124, 0.16);
+    --person-a: #7ea6dd;
+    --person-b: #dd8aab;
+    --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55);
+  }
+}
+
+:root[data-theme='dark'] {
+  --ink: #edecf4;
+  --ink-2: #c3c2d4;
+  --ink-3: #9695ac;
+  --paper: #14141f;
+  --surface: #1d1d2b;
+  --surface-2: #262637;
+  --line: rgba(255, 255, 255, 0.1);
+  --line-strong: rgba(255, 255, 255, 0.2);
+  --accent: #e08a52;
+  --accent-soft: rgba(224, 138, 82, 0.16);
+  --good: #4fb37c;
+  --good-soft: rgba(79, 179, 124, 0.16);
+  --person-a: #7ea6dd;
+  --person-b: #dd8aab;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.55);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  /* Text scaling is left alone so the tablet's accessibility settings still work. */
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--paper);
+  color: var(--ink);
+  min-height: 100vh;
+  min-height: 100dvh;
+  overscroll-behavior-y: none;
+  line-height: 1.45;
+  -webkit-font-smoothing: antialiased;
+}
+
+body.sheet-open {
+  overflow: hidden;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+  color: inherit;
+}
+
+button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  touch-action: manipulation;
+}
+
+:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 6px;
+}
+
+.icon {
+  display: block;
+  flex-shrink: 0;
+}
+
+/* ── Boot splash ───────────────────────────────────────────── */
+.boot {
+  position: fixed;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  background: var(--paper);
+  z-index: 500;
+}
+
+.boot.hide {
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.3s ease;
+}
+
+.boot-inner {
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 14px;
+}
+
+.boot-mark {
+  width: 60px;
+  height: 60px;
+  margin: 0 auto 14px;
+  border-radius: 18px;
+  background: var(--ink);
+  color: var(--paper);
+  font-family: var(--font-display);
+  font-size: 30px;
+  display: grid;
+  place-items: center;
+}
+
+/* ── App frame ─────────────────────────────────────────────── */
+.app {
+  min-height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.topbar {
+  position: sticky;
+  top: 0;
+  /* Above the side rail so the two never fight when scrolled. */
+  z-index: 70;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: var(--topbar-h);
+  padding: calc(var(--safe-top) + 8px) calc(var(--safe-right) + 12px) 8px calc(var(--safe-left) + 12px);
+  background: color-mix(in srgb, var(--paper) 88%, transparent);
+  backdrop-filter: saturate(1.4) blur(14px);
+  -webkit-backdrop-filter: saturate(1.4) blur(14px);
+  border-bottom: 1px solid var(--line);
+}
+
+.topbar-left,
+.topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.icon-btn {
+  width: var(--tap);
+  height: var(--tap);
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  color: var(--ink-2);
+  flex-shrink: 0;
+  transition: background 0.15s;
+}
+
+.icon-btn:active {
+  background: var(--surface-2);
+}
+
+.week-pill {
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-sm);
+  text-align: center;
+  min-width: 132px;
+  min-height: var(--tap);
+}
+
+.week-pill-main {
+  display: block;
+  font-weight: 600;
+  font-size: 14px;
+  letter-spacing: -0.01em;
+}
+
+.week-pill-sub {
+  display: block;
+  font-size: 11px;
+  color: var(--ink-3);
+  margin-top: 1px;
+}
+
+.today-chip {
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 12px;
+  font-weight: 600;
+  min-height: 44px;
+  white-space: nowrap;
+}
+
+.save-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--good);
+  opacity: 0.35;
+  transition: opacity 0.3s, background 0.3s;
+}
+
+.save-dot.saving {
+  opacity: 1;
+  background: var(--accent);
+}
+
+.save-dot.error {
+  opacity: 1;
+  background: var(--danger);
+}
+
+.view {
+  flex: 1;
+  width: 100%;
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 16px calc(var(--safe-right) + 14px) calc(var(--tabbar-h) + var(--safe-bottom) + 28px) calc(var(--safe-left) + 14px);
+}
+
+/* ── Bottom tab bar ────────────────────────────────────────── */
+.tabbar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  z-index: 60;
+  display: flex;
+  justify-content: center;
+  gap: 2px;
+  padding: 6px calc(var(--safe-right) + 8px) calc(var(--safe-bottom) + 6px) calc(var(--safe-left) + 8px);
+  background: color-mix(in srgb, var(--paper) 92%, transparent);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--line);
+}
+
+.tab {
+  flex: 1 1 0;
+  max-width: 132px;
+  min-height: 56px;
+  border-radius: var(--r-md);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 3px;
+  color: var(--ink-3);
+  font-size: 11px;
+  font-weight: 600;
+  position: relative;
+  transition: color 0.15s, background 0.15s;
+}
+
+.tab.active {
+  color: var(--ink);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+}
+
+.tab-badge {
+  position: absolute;
+  top: 6px;
+  right: 50%;
+  transform: translateX(19px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: 9px;
+  background: var(--accent);
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  display: grid;
+  place-items: center;
+}
+
+/* On a landscape tablet the nav moves to the side, freeing vertical space. */
+@media (min-width: 900px) and (min-height: 620px) {
+  .app {
+    flex-direction: row;
+  }
+
+  .topbar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+  }
+
+  .tabbar {
+    position: fixed;
+    /* Starts exactly at the header's bottom edge, so the two never overlap. */
+    top: calc(var(--safe-top) + var(--topbar-h) + 8px);
+    bottom: 0;
+    left: 0;
+    right: auto;
+    width: 116px;
+    flex-direction: column;
+    justify-content: flex-start;
+    gap: 4px;
+    padding: 12px 10px calc(var(--safe-bottom) + 16px) calc(var(--safe-left) + 10px);
+    border-top: none;
+    border-right: 1px solid var(--line);
+  }
+
+  .tab {
+    flex: 0 0 auto;
+    width: 100%;
+    max-width: none;
+    min-height: 62px;
+  }
+
+  .view {
+    padding-top: calc(var(--topbar-h) + 18px);
+    padding-bottom: 40px;
+    padding-left: 132px;
+    max-width: 1240px;
+  }
+
+  .tab-badge {
+    right: 10px;
+    top: 10px;
+    transform: none;
+  }
+}
+
+/* ── Toast ─────────────────────────────────────────────────── */
+.toast-host {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: calc(var(--tabbar-h) + var(--safe-bottom) + 14px);
+  z-index: 400;
+  display: flex;
+  justify-content: center;
+  pointer-events: none;
+  padding: 0 16px;
+}
+
+.toast {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  max-width: 460px;
+  padding: 13px 18px;
+  border-radius: 999px;
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 14px;
+  font-weight: 500;
+  box-shadow: var(--shadow-lg);
+  transform: translateY(90px);
+  opacity: 0;
+  transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1), opacity 0.28s;
+  pointer-events: auto;
+}
+
+.toast.show {
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.toast-action {
+  color: var(--accent);
+  font-weight: 700;
+  padding: 4px 2px;
+  white-space: nowrap;
+}
+
+@media (min-width: 900px) and (min-height: 620px) {
+  .toast-host {
+    bottom: 26px;
+    padding-left: 132px;
+  }
+}
+
+/* ── Bottom sheet ──────────────────────────────────────────── */
+.sheet-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(10, 10, 20, 0);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  transition: background 0.22s;
+}
+
+.sheet-overlay.open {
+  background: rgba(10, 10, 20, 0.45);
+}
+
+.sheet {
+  width: 100%;
+  max-width: 560px;
+  max-height: min(86dvh, 780px);
+  display: flex;
+  flex-direction: column;
+  background: var(--surface);
+  border-radius: 26px 26px 0 0;
+  padding-bottom: var(--safe-bottom);
+  box-shadow: var(--shadow-lg);
+  transform: translateY(102%);
+  transition: transform 0.28s cubic-bezier(0.2, 0.9, 0.3, 1);
+}
+
+.sheet-overlay.open .sheet {
+  transform: translateY(0);
+}
+
+.sheet-grip {
+  width: 42px;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  margin: 10px auto 2px;
+  flex-shrink: 0;
+}
+
+.sheet-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 14px 10px 20px;
+  flex-shrink: 0;
+}
+
+.sheet-title {
+  font-family: var(--font-display);
+  font-size: 20px;
+  line-height: 1.25;
+}
+
+.sheet-sub {
+  font-size: 13px;
+  color: var(--ink-3);
+  margin-top: 3px;
+  line-height: 1.4;
+}
+
+.sheet-body {
+  overflow-y: auto;
+  -webkit-overflow-scrolling: touch;
+  padding: 0 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sheet-option {
+  display: flex;
+  align-items: center;
+  gap: 13px;
+  width: 100%;
+  min-height: 56px;
+  padding: 12px 16px;
+  border-radius: var(--r-md);
+  background: var(--surface-2);
+  color: var(--ink);
+  font-size: 15px;
+  font-weight: 500;
+  text-align: left;
+  transition: background 0.14s;
+}
+
+.sheet-option:active {
+  background: var(--line);
+}
+
+.sheet-option.danger {
+  color: var(--danger);
+}
+
+.sheet-option.active {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.sheet-option-icon {
+  display: grid;
+  place-items: center;
+  width: 30px;
+  color: var(--ink-3);
+  flex-shrink: 0;
+}
+
+.sheet-option.danger .sheet-option-icon,
+.sheet-option.active .sheet-option-icon {
+  color: currentColor;
+}
+
+.sheet-option-label {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.sheet-option-label small {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--ink-3);
+  margin-top: 2px;
+}
+
+@media (min-width: 700px) {
+  .sheet-overlay {
+    align-items: center;
+  }
+
+  .sheet {
+    border-radius: 26px;
+    transform: translateY(20px) scale(0.97);
+    opacity: 0;
+    transition: transform 0.24s ease, opacity 0.24s ease;
+  }
+
+  .sheet-overlay.open .sheet {
+    transform: none;
+    opacity: 1;
+  }
+
+  .sheet-grip {
+    display: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

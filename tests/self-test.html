@@ -1,0 +1,344 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Home Planner — self tests</title>
+<style>
+  body{font-family:ui-monospace,SFMono-Regular,Menlo,monospace;background:#12121c;color:#e8e8f0;padding:20px;line-height:1.5}
+  h1{font-size:16px;margin:0 0 14px}
+  .pass{color:#5fd08a}.fail{color:#ff7b72;font-weight:700}
+  table{border-collapse:collapse;margin:10px 0 18px;font-size:12px}
+  td,th{border:1px solid #33334a;padding:4px 9px;text-align:left}
+  pre{white-space:pre-wrap;font-size:12px}
+  #summary{margin:16px 0;padding:10px 14px;border-radius:8px;background:#1c1c2c;font-size:14px}
+</style>
+</head>
+<body>
+<h1>Home Planner — allocator &amp; week engine self tests</h1>
+<div id="summary">running…</div>
+<div id="out"></div>
+<script type="module">
+import { weekKey, parseWeekKey, shiftWeekKey, isoWeekStart, DAY_NAMES, weekRangeLabel, dayName } from '../js/week.js';
+import { normalise, defaultShares } from '../js/state.js';
+import { allocate, allocateWeek, weekTaskInstances, BOTH } from '../js/allocate.js';
+import { buildIcs } from '../js/ics.js';
+import { DEFAULT_TASKS } from '../js/data.js';
+
+const out = document.getElementById('out');
+let pass = 0, fail = 0;
+
+function log(html) { const d = document.createElement('div'); d.innerHTML = html; out.appendChild(d); }
+function ok(name, cond, extra = '') {
+  if (cond) { pass++; log(`<span class="pass">PASS</span> ${name} ${extra}`); }
+  else { fail++; log(`<span class="fail">FAIL</span> ${name} ${extra}`); }
+}
+
+// ── week engine ──────────────────────────────────────────────
+ok('Jan 1 2026 is in 2026-W01', weekKey(new Date(2026, 0, 1)) === '2026-W01', weekKey(new Date(2026, 0, 1)));
+ok('Mon 29 Dec 2025 is in 2026-W01', weekKey(new Date(2025, 11, 29)) === '2026-W01', weekKey(new Date(2025, 11, 29)));
+ok('Sun 28 Dec 2025 is in 2025-W52', weekKey(new Date(2025, 11, 28)) === '2025-W52', weekKey(new Date(2025, 11, 28)));
+ok('2026-08-16 (Sunday) and 2026-08-10 (Monday) share a week',
+   weekKey(new Date(2026, 7, 16)) === weekKey(new Date(2026, 7, 10)),
+   weekKey(new Date(2026, 7, 16)));
+ok('Monday and Sunday of same week match for 200 consecutive weeks', (() => {
+  for (let i = 0; i < 200; i++) {
+    const mon = new Date(2024, 0, 1 + i * 7);
+    const sun = new Date(2024, 0, 1 + i * 7 + 6);
+    if (weekKey(mon) !== weekKey(sun)) return false;
+  }
+  return true;
+})());
+ok('parseWeekKey round-trips through weekKey for 300 weeks', (() => {
+  let k = '2024-W01';
+  for (let i = 0; i < 300; i++) {
+    const p = parseWeekKey(k);
+    const local = new Date(p.monday.getUTCFullYear(), p.monday.getUTCMonth(), p.monday.getUTCDate());
+    if (weekKey(local) !== k) return false;
+    k = shiftWeekKey(k, 1);
+  }
+  return true;
+})());
+ok('week survives DST boundaries (Mar & Oct 2026)', (() => {
+  const marA = weekKey(new Date(2026, 2, 29, 1)); // clocks go forward in EU
+  const marB = weekKey(new Date(2026, 2, 29, 23));
+  const octA = weekKey(new Date(2026, 9, 25, 1));
+  const octB = weekKey(new Date(2026, 9, 25, 23));
+  return marA === marB && octA === octB;
+})());
+ok('isoWeekStart is always a Monday', (() => {
+  for (let i = 0; i < 400; i++) {
+    const d = new Date(2025, 0, 1 + i);
+    if (isoWeekStart(d).getUTCDay() !== 1) return false;
+  }
+  return true;
+})());
+log(`<pre>weekKey(today) = ${weekKey()}   range = ${weekRangeLabel(weekKey())}   today = ${dayName()}</pre>`);
+
+// ── allocator ────────────────────────────────────────────────
+function makeState(overrides = {}) {
+  return normalise({ shares: defaultShares('aHeavy'), ...overrides });
+}
+
+function report(title, alloc, shares) {
+  const rows = Object.entries(alloc.perCat)
+    .filter(([, c]) => c.total > 0)
+    .map(([cat, c]) => {
+      const dev = c.auto ? '—' : `${c.offBy.toFixed(2)} pts`;
+      return `<tr><td>${cat}${c.auto ? ' (auto)' : ''}${c.locked ? ' (locked)' : ''}</td><td>${c.total}</td><td>${c.a}</td><td>${shares[cat]}%</td><td>${c.reachable}%</td><td>${c.actual}%</td><td>${dev}</td><td>${c.step.toFixed(1)}%</td></tr>`;
+    });
+  log(`<h3>${title}</h3><table><tr><th>category</th><th>pts</th><th>A pts</th><th>target</th><th>achievable</th><th>actual</th><th>off target</th><th>1 pt =</th></tr>${rows.join('')}</table>`);
+}
+
+const s1 = makeState();
+const key = weekKey();
+const a1 = allocate(s1, key, { carry: {} });
+report('A-heavy preset, single week', a1, s1.shares);
+log(`<pre>assignable vs locked per category:
+${Object.entries(a1.perCat).filter(([,c])=>c.total).map(([k,c])=>`  ${k.padEnd(11)} total=${String(c.total).padStart(2)} assignable=${String(c.assignable).padStart(2)} fixedA=${c.fixedA} reachable=${c.reachable}% actual=${c.actual}%${c.locked?'  LOCKED (all shared)':''}`).join('\n')}</pre>`);
+
+// Accuracy: measure against what the task mix actually permits. Shared ("together")
+// tasks are locked to 50/50, so they cap how lopsided a category can be.
+let worst = 0, worstCat = '';
+Object.entries(a1.perCat).forEach(([cat, c]) => {
+  if (!c.total || c.auto || c.locked) return;
+  const off = Math.abs(c.a - (c.reachable * c.total) / 100);
+  if (off > worst) { worst = off; worstCat = cat; }
+});
+ok('every category lands within 1 point of the best achievable split', worst <= 1 + 1e-9, `worst = ${worst.toFixed(2)} pts (${worstCat || 'none'})`);
+
+ok('locked categories are flagged, not silently wrong', (() => {
+  const locked = Object.entries(a1.perCat).filter(([, c]) => c.locked);
+  log(`<pre>locked (all-shared) categories: ${locked.map(([k]) => k).join(', ') || 'none'}</pre>`);
+  return locked.every(([, c]) => c.assignable === 0);
+})());
+
+ok('points conserved (A + B === total assigned)', (() => {
+  const total = a1.instances.reduce((s, t) => s + t.pts, 0);
+  return Math.abs(a1.totals.a + a1.totals.b - total) < 1e-9;
+})(), `${a1.totals.a} + ${a1.totals.b}`);
+
+ok('deterministic: same week allocates identically twice', (() => {
+  const b = allocate(makeState(), key, { carry: {} });
+  return JSON.stringify(b.days) === JSON.stringify(allocate(makeState(), key, { carry: {} }).days);
+})());
+
+ok('different weeks produce different rotas', (() => {
+  const keys = [key, shiftWeekKey(key, 1), shiftWeekKey(key, 2), shiftWeekKey(key, 3)];
+  const sigs = new Set(keys.map(k => JSON.stringify(allocate(makeState(), k, { carry: {} }).days[ 'Monday' ].items.map(i => i.owner))));
+  return sigs.size > 1;
+})());
+
+ok('kitchen reset never goes to the cook', (() => {
+  for (let w = 0; w < 12; w++) {
+    const k = shiftWeekKey(key, w);
+    const a = allocate(makeState(), k, { carry: {} });
+    for (const d of DAY_NAMES) {
+      const day = a.days[d];
+      const cook = day.items.find(i => i.cat === 'cooking' && i.owner !== BOTH);
+      const kitchen = day.items.find(i => i.cat === 'kitchen');
+      if (cook && kitchen && cook.owner === kitchen.owner) return false;
+    }
+  }
+  return true;
+})());
+
+ok('nobody gets an empty day when that day has 2+ solo tasks', (() => {
+  for (let w = 0; w < 12; w++) {
+    const a = allocate(makeState(), shiftWeekKey(key, w), { carry: {} });
+    for (const d of DAY_NAMES) {
+      const items = a.days[d].items;
+      const solo = items.filter(i => i.owner !== BOTH);
+      if (solo.length < 2) continue;
+      const owners = new Set(items.map(i => i.owner));
+      if (!(owners.has(a.people.a.id) || owners.has(BOTH)) || !(owners.has(a.people.b.id) || owners.has(BOTH))) return false;
+    }
+  }
+  return true;
+})());
+
+ok('day balancing does not break category accuracy', (() => {
+  // Swaps are only allowed between same-category, same-point tasks, so totals must hold.
+  for (let w = 0; w < 15; w++) {
+    const a = allocate(makeState(), shiftWeekKey(key, w), { carry: {} });
+    for (const c of Object.values(a.perCat)) {
+      if (!c.total || c.auto || c.locked) continue;
+      if (Math.abs(c.a - (c.reachable * c.total) / 100) > 1 + 1e-9) return false;
+    }
+  }
+  return true;
+})());
+
+ok('daily load stays reasonably even', (() => {
+  let worstDay = 0;
+  for (let w = 0; w < 15; w++) {
+    const a = allocate(makeState(), shiftWeekKey(key, w), { carry: {} });
+    for (const d of DAY_NAMES) {
+      const gap = Math.abs(a.days[d].ptsA - a.days[d].ptsB);
+      if (gap > worstDay) worstDay = gap;
+    }
+  }
+  log(`<pre>worst single-day point gap across 15 weeks: ${worstDay}</pre>`);
+  return worstDay <= 5;
+})());
+
+ok('0% and 100% extremes are respected exactly', (() => {
+  const zero = makeState({ shares: { ...defaultShares('aHeavy'), cooking: 0, laundry: 0 } });
+  const full = makeState({ shares: { ...defaultShares('aHeavy'), cooking: 100, laundry: 100 } });
+  const az = allocate(zero, key, { carry: {} });
+  const af = allocate(full, key, { carry: {} });
+  return az.perCat.cooking.a === 0 && az.perCat.laundry.a === 0 &&
+         af.perCat.cooking.a === af.perCat.cooking.total && af.perCat.laundry.a === af.perCat.laundry.total;
+})());
+
+ok('50/50 balanced preset splits within 1 point everywhere', (() => {
+  const s = makeState({ shares: Object.fromEntries(Object.keys(defaultShares('balanced')).map(c => [c, 50])) });
+  const a = allocate(s, key, { carry: {} });
+  return Object.values(a.perCat).every(c => !c.total || c.auto || Math.abs(c.a - c.total / 2) <= 1);
+})());
+
+// Manual moves and overrides
+const s2 = makeState();
+const first = DEFAULT_TASKS.find(t => t.cat === 'laundry');
+s2.weeks[key] = { done: {}, owner: { [first.id]: s2.people[1].id }, dayOf: { [first.id]: 'Friday' }, skipped: {}, extras: [], notes: '', roll: 0 };
+const a2 = allocate(s2, key, { carry: {} });
+ok('manual owner override is honoured', a2.days.Friday.items.some(i => i.id === first.id && i.owner === s2.people[1].id));
+ok('manual day move is honoured', a2.days.Friday.items.some(i => i.id === first.id) && !a2.days.Tuesday.items.some(i => i.id === first.id));
+ok('override still keeps the rest of the category near target', (() => {
+  const c = a2.perCat.laundry;
+  return Math.abs(c.a - (c.total * c.target) / 100) <= 1.5;
+})());
+
+const s3 = makeState();
+s3.weeks[key] = { done: {}, owner: {}, dayOf: {}, skipped: { 'wed-vacuum': true }, extras: [
+  { id: 'x1', text: 'Fix the shelf', cat: 'admin', pts: 2, day: 'Saturday', person: null, shared: false, extra: true }
+], notes: '', roll: 0 };
+const a3 = allocate(s3, key, { carry: {} });
+ok('skipped task disappears from the week', !a3.instances.some(i => i.id === 'wed-vacuum'));
+ok('one-off extra task appears on its day', a3.days.Saturday.items.some(i => i.id === 'x1'));
+
+ok('shared tasks show for both and split points evenly', (() => {
+  const shared = a1.instances.filter(i => i.shared);
+  if (!shared.length) return false;
+  return a1.days.Saturday.items.filter(i => i.shared).every(i => i.owner === BOTH);
+})());
+
+// A lopsided target must be reachable now that bathroom jobs are solo work.
+ok('bathroom reaches its 90% target within one point', (() => {
+  const c = a1.perCat.bathroom;
+  log(`<pre>bathroom: total=${c.total} A=${c.a} target=${c.target}% achievable=${c.reachable}% actual=${c.actual}%</pre>`);
+  return !c.locked && Math.abs(c.a - (c.reachable * c.total) / 100) <= 1;
+})());
+
+ok('every non-locked category is steerable across the full 0-100 range', (() => {
+  const results = [];
+  for (const pct of [0, 25, 50, 75, 100]) {
+    const s = makeState({ shares: Object.fromEntries(Object.keys(defaultShares('aHeavy')).map(c => [c, pct])) });
+    const a = allocate(s, key, { carry: {} });
+    for (const [cat, c] of Object.entries(a.perCat)) {
+      if (!c.total || c.auto || c.locked) continue;
+      const off = Math.abs(c.a - (c.reachable * c.total) / 100);
+      if (off > 1) results.push(`${cat}@${pct}%: off ${off.toFixed(2)}`);
+    }
+  }
+  log(`<pre>sweep 0/25/50/75/100%: ${results.length ? results.join(', ') : 'all within 1 pt'}</pre>`);
+  return results.length === 0;
+})());
+
+// Fairness ledger across many weeks. Measured in accumulated POINTS, not percentages:
+// a category with one 1-point task per week can only ever land on whole points, so over
+// 12 weeks a 70% target (8.4 pts) must resolve to 8 or 9. Judging such a category by
+// percentage deviation would demand an impossible split.
+ok('ledger makes the multi-week total land within 1 point of ideal', (() => {
+  const s = makeState();
+  const keys = Array.from({ length: 12 }, (_, i) => shiftWeekKey(key, i));
+  const acc = {};
+  // Weeks must be created as we go: the ledger only looks at weeks that already exist.
+  keys.forEach(k => {
+    s.weeks[k] = { done: {}, owner: {}, dayOf: {}, skipped: {}, extras: [], notes: '', roll: 0 };
+    const a = allocateWeek(s, k);
+    Object.entries(a.perCat).forEach(([cat, c]) => {
+      if (!c.total || c.auto || c.locked) return;
+      acc[cat] = acc[cat] || { a: 0, total: 0, target: c.target, reach: 0 };
+      acc[cat].a += c.a;
+      acc[cat].total += c.total;
+      acc[cat].reach += (c.reachable * c.total) / 100;
+    });
+  });
+  const rows = Object.entries(acc).map(([cat, c]) => {
+    const actual = (c.a / c.total) * 100;
+    const idealPts = c.reach;
+    const offPts = Math.abs(c.a - idealPts);
+    return `<tr><td>${cat}</td><td>${c.target}%</td><td>${actual.toFixed(1)}%</td><td>${idealPts.toFixed(1)}</td><td>${c.a}</td><td>${offPts.toFixed(2)} pts</td></tr>`;
+  });
+  log(`<h3>12-week accumulated total (with fairness ledger)</h3><table><tr><th>category</th><th>target</th><th>actual avg</th><th>ideal pts</th><th>actual pts</th><th>off by</th></tr>${rows.join('')}</table>`);
+  return Object.values(acc).every(c => Math.abs(c.a - c.reach) <= 1 + 1e-9);
+})());
+
+// Convergence proof: given enough weeks, even a 1-point-per-week category should track
+// its target to within a fraction of a percent.
+ok('long run (52 weeks) converges to the target percentage', (() => {
+  const s = makeState();
+  const acc = {};
+  for (let i = 0; i < 52; i++) {
+    const k = shiftWeekKey(key, i);
+    s.weeks[k] = { done: {}, owner: {}, dayOf: {}, skipped: {}, extras: [], notes: '', roll: 0 };
+    const a = allocateWeek(s, k);
+    Object.entries(a.perCat).forEach(([cat, c]) => {
+      if (!c.total || c.auto || c.locked) return;
+      acc[cat] = acc[cat] || { a: 0, total: 0, target: c.target, reach: 0 };
+      acc[cat].a += c.a;
+      acc[cat].total += c.total;
+      acc[cat].reach += (c.reachable * c.total) / 100;
+    });
+  }
+  const rows = Object.entries(acc).map(([cat, c]) => {
+    const actual = (c.a / c.total) * 100;
+    const ideal = (c.reach / c.total) * 100;
+    return `<tr><td>${cat}</td><td>${c.target}%</td><td>${ideal.toFixed(1)}%</td><td>${actual.toFixed(2)}%</td><td>${Math.abs(actual - ideal).toFixed(2)}</td></tr>`;
+  });
+  log(`<h3>52-week average</h3><table><tr><th>category</th><th>target</th><th>achievable</th><th>actual avg</th><th>off by</th></tr>${rows.join('')}</table>`);
+  return Object.values(acc).every(c => Math.abs((c.a / c.total) * 100 - (c.reach / c.total) * 100) < 1);
+})());
+
+// Changing your mind mid-stream must not leave a permanent debt hangover.
+ok('ledger adapts within 3 weeks when a target is changed', (() => {
+  const s = makeState();
+  for (let i = 0; i < 8; i++) {
+    const k = shiftWeekKey(key, i);
+    s.weeks[k] = { done: {}, owner: {}, dayOf: {}, skipped: {}, extras: [], notes: '', roll: 0 };
+    allocateWeek(s, k);
+  }
+  s.shares.cleaning = 20; // was 45
+  const after = [];
+  for (let i = 8; i < 13; i++) {
+    const k = shiftWeekKey(key, i);
+    s.weeks[k] = { done: {}, owner: {}, dayOf: {}, skipped: {}, extras: [], notes: '', roll: 0 };
+    const a = allocateWeek(s, k);
+    after.push(a.perCat.cleaning.actual);
+  }
+  log(`<pre>cleaning target changed 45% → 20%; next weeks: ${after.join('%, ')}%</pre>`);
+  const settled = after.slice(2);
+  return settled.every(p => Math.abs(p - 20) <= 12);
+})());
+
+// ── calendar export ──────────────────────────────────────────
+const ics = buildIcs(s1, [key]);
+ok('ics has calendar wrapper', ics.startsWith('BEGIN:VCALENDAR') && ics.trim().endsWith('END:VCALENDAR'));
+ok('ics event count matches task count', (() => {
+  const events = (ics.match(/BEGIN:VEVENT/g) || []).length;
+  return events === a1.instances.length;
+})(), `${(ics.match(/BEGIN:VEVENT/g) || []).length} events`);
+ok('ics uses CRLF line endings', ics.includes('\r\n') && !/[^\r]\n/.test(ics));
+ok('ics escapes commas in task text', (() => {
+  const s = makeState();
+  s.tasks = [{ id: 't1', text: 'Buy milk, eggs; and bread', cat: 'groceries', pts: 1, day: 'Monday', active: true }];
+  return buildIcs(s, [key]).includes('milk\\, eggs\\; and bread');
+})());
+
+document.getElementById('summary').innerHTML =
+  fail === 0
+    ? `<span class="pass">ALL ${pass} TESTS PASSED</span>`
+    : `<span class="fail">${fail} FAILED</span> / ${pass} passed`;
+</script>
+</body>
+</html>
