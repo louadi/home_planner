@@ -221,6 +221,8 @@ export function normalise(raw) {
       carryUnfinished: s.carryUnfinished === undefined ? true : !!s.carryUnfinished,
       showPoints: s.showPoints === undefined ? true : !!s.showPoints,
       fairnessCarryOver: s.fairnessCarryOver === undefined ? true : !!s.fairnessCarryOver,
+      // Where the shopping list gets emailed, so it does not have to be typed each time.
+      shareEmail: typeof s.shareEmail === 'string' ? s.shareEmail.trim().slice(0, 120) : '',
       theme: ['auto', 'light', 'dark'].includes(s.theme) ? s.theme : 'auto',
       lastTab: typeof s.lastTab === 'string' ? s.lastTab : 'today',
     },

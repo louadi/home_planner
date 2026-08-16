@@ -15,6 +15,7 @@ import {
 import { requestPersistentStorage } from './storage.js';
 import { allocateWeek, BOTH } from './allocate.js';
 import { downloadIcs, weekKeysFrom } from './ics.js';
+import { openShareList } from './share.js';
 import { renderToday } from './view-today.js';
 import { renderWeek } from './view-week.js';
 import { renderBalance } from './view-balance.js';
@@ -285,6 +286,12 @@ function openMenu() {
     subtitle: `${describeWeekOffset(offset)} · ${weekRangeLabel(ui.weekKey)}`,
     options: [
       { label: 'Add to calendar', icon: 'calendar', onClick: openCalendarSheet },
+      {
+        label: 'Send shopping list',
+        icon: 'cart',
+        hint: 'Email it, or share it to another app',
+        onClick: () => openShareList(state),
+      },
       { label: 'Print this week', icon: 'note', onClick: () => setTimeout(() => window.print(), 260) },
       {
         label: 'Shuffle who does what',

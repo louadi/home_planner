@@ -258,6 +258,16 @@ textarea {
   line-height: 1.6;
 }
 
+/* The shopping list shown for a manual copy: monospace so items line up, and sized to
+   its content rather than the tall default used for notes. */
+textarea.share-text {
+  min-height: 0;
+  margin-bottom: 10px;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 15px;
+  line-height: 1.5;
+}
+
 select {
   appearance: none;
   -webkit-appearance: none;

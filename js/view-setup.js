@@ -260,10 +260,34 @@ export function renderSetup(host, ctx) {
   );
 
   // Preferences
+  const shareEmailInput = el('input', {
+    type: 'email',
+    inputmode: 'email',
+    autocomplete: 'email',
+    placeholder: 'name@example.com',
+    value: state.settings.shareEmail || '',
+    'aria-label': 'Email address for the shopping list',
+  });
+  const persistShareEmail = () => {
+    const value = shareEmailInput.value.trim();
+    if (value === (state.settings.shareEmail || '')) return;
+    update((d) => {
+      d.settings.shareEmail = value;
+    }, { silent: true });
+    toast(value ? 'Shopping list will be sent here' : 'Email address cleared');
+  };
+  shareEmailInput.addEventListener('change', persistShareEmail);
+  shareEmailInput.addEventListener('blur', persistShareEmail);
+
   nodes.push(
     el('div', { class: 'card' }, [
       el('div', { class: 'card-head' }, [el('div', {}, [el('div', { class: 'card-title', text: 'Preferences' })])]),
       el('div', { class: 'card-body' }, [
+        field(
+          'Send the shopping list to',
+          shareEmailInput,
+          'Used by the Send button on the Shopping tab. Leave empty to choose the address each time.'
+        ),
         switchRow('Even things out over time', 'If a week ends up lopsided, the next weeks correct it automatically.', state.settings.fairnessCarryOver, (on) => {
           update((d) => {
             d.settings.fairnessCarryOver = on;

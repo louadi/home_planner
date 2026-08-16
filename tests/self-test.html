@@ -22,6 +22,7 @@ import { weekKey, parseWeekKey, shiftWeekKey, isoWeekStart, DAY_NAMES, weekRange
 import { normalise, defaultShares } from '../js/state.js';
 import { allocate, allocateWeek, weekTaskInstances, BOTH } from '../js/allocate.js';
 import { buildIcs } from '../js/ics.js';
+import { shoppingListText, shoppingListSubject, buildMailto } from '../js/share.js';
 import { DEFAULT_TASKS } from '../js/data.js';
 
 const out = document.getElementById('out');
@@ -334,6 +335,47 @@ ok('ics escapes commas in task text', (() => {
   s.tasks = [{ id: 't1', text: 'Buy milk, eggs; and bread', cat: 'groceries', pts: 1, day: 'Monday', active: true }];
   return buildIcs(s, [key]).includes('milk\\, eggs\\; and bread');
 })());
+
+// ── sharing the shopping list ────────────────────────────────
+{
+  const s = makeState();
+  s.groceries = [
+    { id: 'g1', text: 'Milk', checked: false },
+    { id: 'g2', text: 'Bread', checked: true },
+    { id: 'g3', text: 'Apples', checked: false },
+  ];
+
+  const body = shoppingListText(s);
+  ok('shopping list contains only unbought items', body.includes('Milk') && body.includes('Apples') && !body.includes('Bread'), body.replace(/\n/g, ' | '));
+  ok('bought items included on request', shoppingListText(s, { includeBought: true }).includes('Bread'));
+  ok('subject counts items still to buy', shoppingListSubject(s).includes('2 items'), shoppingListSubject(s));
+
+  const empty = makeState();
+  empty.groceries = [{ id: 'g1', text: 'Milk', checked: true }];
+  ok('empty list says so rather than sending a blank email', shoppingListText(empty).includes('Nothing left to buy'));
+
+  // Blank rows are easy to create by tapping add twice; they must not become "- ".
+  const blanks = makeState();
+  blanks.groceries = [{ id: 'g1', text: '   ', checked: false }, { id: 'g2', text: 'Rice', checked: false }];
+  ok('whitespace-only items are dropped', shoppingListText(blanks) === '- Rice', shoppingListText(blanks));
+  ok('subject ignores blank items', shoppingListSubject(blanks).includes('1 item)'), shoppingListSubject(blanks));
+
+  const short = buildMailto('a@b.com', 'Subject', '- Milk\n- Apples');
+  ok('mailto includes address, subject and body', short.url.startsWith('mailto:a@b.com?') && short.url.includes('Milk') && !short.truncated);
+  ok('mailto with no address still builds', buildMailto('', 'S', '- Milk').url.startsWith('mailto:?'));
+
+  // A long list must be trimmed rather than handed to the OS at a length it will reject.
+  const many = Array.from({ length: 400 }, (_, i) => `- Item number ${i} with a long name`).join('\n');
+  const big = buildMailto('a@b.com', 'Subject', many);
+  ok('over-long mailto is truncated under the limit', big.truncated && big.url.length <= 1600, `${big.url.length} chars`);
+  ok('truncated mailto tells the user it was shortened', decodeURIComponent(big.url).includes('list shortened'));
+
+  // Characters that would otherwise break the URL or split the body.
+  const tricky = buildMailto('a@b.com', 'S', '- Tea & coffee\n- 50% cream\n- a?b=c#d');
+  const decoded = decodeURIComponent(tricky.url);
+  ok('special characters survive encoding', decoded.includes('Tea & coffee') && decoded.includes('50% cream') && decoded.includes('a?b=c#d'));
+  ok('ampersand is escaped, not left to split the query', !tricky.url.includes('Tea & coffee') && tricky.url.includes('%26'));
+}
 
 document.getElementById('summary').innerHTML =
   fail === 0

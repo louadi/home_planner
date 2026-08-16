@@ -2,6 +2,7 @@
 
 import { el, icon, mount, toast, confirmSheet } from './dom.js';
 import { state, update, ensureWeek, uid } from './state.js';
+import { openShareList } from './share.js';
 
 export function renderGroceries(host, ctx) {
   const { weekKey: wk, refresh } = ctx;
@@ -89,6 +90,8 @@ export function renderGroceries(host, ctx) {
     list.appendChild(row);
   });
 
+  const unbought = state.groceries.filter((g) => !g.checked && String(g.text || '').trim()).length;
+
   nodes.push(
     el('div', { class: 'card' }, [
       el('div', { class: 'card-head' }, [
@@ -96,6 +99,18 @@ export function renderGroceries(host, ctx) {
           el('div', { class: 'card-title', text: 'Grocery list' }),
           el('div', { class: 'card-sub', text: `${state.groceries.length} items · ${checkedCount} in the basket` }),
         ]),
+        unbought
+          ? el(
+              'button',
+              {
+                class: 'btn accent',
+                type: 'button',
+                'aria-label': 'Send the shopping list',
+                onclick: () => openShareList(state),
+              },
+              [icon('upload', 18), 'Send']
+            )
+          : null,
       ]),
       el('div', { class: 'card-body' }, [
         el('div', { class: 'add-row' }, [

@@ -10,7 +10,7 @@
 //
 // Bump CACHE_VERSION whenever the file list changes.
 
-const CACHE_VERSION = 'v5';
+const CACHE_VERSION = 'v7';
 const CACHE_NAME = `home-planner-${CACHE_VERSION}`;
 const NETWORK_TIMEOUT_MS = 3500;
 
@@ -31,6 +31,7 @@ const APP_SHELL = [
   './js/dom.js',
   './js/dragdrop.js',
   './js/ics.js',
+  './js/share.js',
   './js/tasks-ui.js',
   './js/view-today.js',
   './js/view-week.js',

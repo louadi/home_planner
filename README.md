@@ -98,13 +98,18 @@ Any static server works equally well (`npx serve`, `php -S localhost:4173`, etc.
 | **Today** | What each of you has to do right now, plus what's coming up |
 | **Week** | All seven days at once; drag tasks between days and people |
 | **Balance** | Set the percentage split per category and see what actually happened |
-| **Shopping** | Grocery list and notes for the week |
+| **Shopping** | Grocery list and notes for the week; **Send** emails or shares the list |
 | **Setup** | Names, the repeating task list, weekly rhythm, preferences, backups |
 
 **Moving a task:** drag its handle (`⠿`), or tap the `⋯` button and choose an action.
 
 **Changing the split:** Balance tab. Drag a slider or use `−` / `+`. Start from a
 *heavy* preset (most of the load on one person) or *Balanced*, then adjust anything.
+
+**Sending the shopping list:** tap **Send** on the Shopping tab (or *Send shopping list*
+in the `⋯` menu). It emails the list, opens Gmail in a browser tab, shares it to another
+app where the device supports that, or copies it. Only items you have not yet ticked off
+are included. Set a default address under Setup → Preferences to skip typing it each time.
 
 **Browsing weeks:** the arrows and the pill in the top bar. Tap **Jump to now** to return.
 
@@ -167,6 +172,7 @@ js/
   data.js               default people, categories, tasks, rhythm
   allocate.js           the splitting algorithm
   ics.js                calendar export
+  share.js              emailing / sharing the shopping list
   dom.js                element helpers, toast, bottom sheet, icons
   dragdrop.js           pointer-based drag and drop
   tasks-ui.js           task rows and task menus
